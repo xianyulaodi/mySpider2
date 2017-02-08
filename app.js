@@ -8,7 +8,8 @@ var eventproxy = require('eventproxy');  //流程控制
 var ep = eventproxy();
 var app = express();
 
-var baseUrl = 'http://www.dytt8.net';  //迅雷首页链接
+var baseUrl = ['http://www.dytt8.net', 'http://dytt8.net/index1.htm'];  //迅雷首页链接
+
 var newMovieLinkArr=[]; //存放新电影的url
 var errLength=[];     //统计出错的链接数
 var highScoreMovieArr=[] //高评分电影
@@ -76,26 +77,37 @@ app.get('/', function (req, res, next) {
 	   	});
 
 	    //先抓取迅雷首页
-	    (function (page) {
-	        superagent
-	        .get(page)
-	        .charset('gb2312')
-	        .end(function (err, sres) {
-	            // 常规的错误处理
-	            if (err) {
-	            	console.log('抓取'+page+'这条信息的时候出错了')
-	                return next(err);
-	            }
-	            var $ = cheerio.load(sres.text);
-	            // 170条电影链接，注意去重
-	            getAllMovieLink($);
-	            highScoreMovie($);
-	            /*
-                *流程控制语句
-                *当首页左侧的链接爬取完毕之后，我们就开始爬取里面的详情页
-                */
-	            ep.emit('get_topic_html', 'get '+page+' successful');
-	        });
+	    (function (pages) {
+	    	var fn = function () {
+	    		var page = pages[0]; // 默认第一个地址
+	    		superagent
+		        .get(page)
+		        .charset('gb2312')
+		        .end(function (err, sres) {
+		            // 常规的错误处理
+		            if (err) {
+		            	console.log('抓取'+page+'这条信息的时候出错了')
+		            	return next(err);            
+		            }
+		           	// sres.text => <meta http-equiv="refresh" content="0;URL=index.htm">
+		           	// 
+		           	if (sres.text.indexOf('<meta') > -1) {
+		           		pages.shift();
+		           		fn();
+		           		return
+		           	}
+		            var $ = cheerio.load(sres.text);
+		            // 170条电影链接，注意去重
+		            getAllMovieLink($);
+		            highScoreMovie($);
+		            /*
+	                *流程控制语句
+	                *当首页左侧的链接爬取完毕之后，我们就开始爬取里面的详情页
+	                */
+		            ep.emit('get_topic_html', 'get '+page+' successful');
+		        });
+	    	};
+	    	fn();
 	    })(baseUrl);
 });
 
